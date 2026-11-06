@@ -37,6 +37,11 @@ app.post('/create-event', async(req, res) =>{
 })
 
 
+
+app.get('/manage-events', async(req, res) => {
+    const result = await eventCollection.find().toArray()
+    res.send(result)
+})
  
 //http://localhost:5000/create-event
 
