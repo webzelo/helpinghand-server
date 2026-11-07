@@ -80,6 +80,22 @@ app.patch('/manage-events/:id', async(req, res) => {
 
     res.send(result)
 })
+
+app.delete('/manage-events/:id', async(req, res) => {
+    const { id } = req.params
+
+    if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: 'Invalid event id.' })
+    }
+
+    const result = await eventCollection.deleteOne({ _id: new ObjectId(id) })
+
+    if (result.deletedCount === 0) {
+        return res.status(404).send({ message: 'Event not found.' })
+    }
+
+    res.send(result)
+})
  
 //http://localhost:5000/create-event
 
