@@ -96,6 +96,32 @@ app.delete('/manage-events/:id', async(req, res) => {
 
     res.send(result)
 })
+
+app.patch('/manage-events/:id/join', async(req, res) => {
+    const { id } = req.params
+    const { userId, joined } = req.body
+
+    if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: 'Invalid event id.' })
+    }
+
+    if (!userId) {
+        return res.status(400).send({ message: 'userId is required.' })
+    }
+
+    const result = await eventCollection.updateOne(
+        { _id: new ObjectId(id) },
+        joined
+            ? { $addToSet: { participants: userId } }
+            : { $pull: { participants: userId } }
+    )
+
+    if (result.matchedCount === 0) {
+        return res.status(404).send({ message: 'Event not found.' })
+    }
+
+    res.send(result)
+})
  
 //http://localhost:5000/create-event
 
