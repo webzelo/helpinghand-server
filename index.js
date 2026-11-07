@@ -1,5 +1,5 @@
 import express from 'express'
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import 'dotenv/config'
 import cors from "cors"
 
@@ -40,6 +40,44 @@ app.post('/create-event', async(req, res) =>{
 
 app.get('/manage-events', async(req, res) => {
     const result = await eventCollection.find().toArray()
+    res.send(result)
+})
+
+app.get('/manage-events/:id', async(req, res) => {
+    const { id } = req.params
+
+    if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: 'Invalid event id.' })
+    }
+
+    const result = await eventCollection.findOne({ _id: new ObjectId(id) })
+
+    if (!result) {
+        return res.status(404).send({ message: 'Event not found.' })
+    }
+
+    res.send(result)
+})
+
+app.patch('/manage-events/:id', async(req, res) => {
+    const { id } = req.params
+
+    if (!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: 'Invalid event id.' })
+    }
+
+    // Never let the client change the document id.
+    const { _id, ...updates } = req.body
+
+    const result = await eventCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: updates }
+    )
+
+    if (result.matchedCount === 0) {
+        return res.status(404).send({ message: 'Event not found.' })
+    }
+
     res.send(result)
 })
  
