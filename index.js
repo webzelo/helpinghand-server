@@ -26,6 +26,20 @@ const mongoClient = await connectToMongoDB()
 const db = mongoClient.db("helpinghand")
 const eventCollection = db.collection("event")
 
+const verifyApi = (req, res, next) => {
+
+    const authHeader = req.headers.authorization
+    console.log(authHeader)
+
+    if(authHeader!=="user logged in"){
+        return res.status(401).send({msg: 'Unauthorized!'})
+    }
+
+    console.log("I am")
+    next();
+
+}
+
 app.post('/create-event', async(req, res) =>{
 
     const data = req.body
@@ -38,12 +52,14 @@ app.post('/create-event', async(req, res) =>{
 
 
 
-app.get('/manage-events', async(req, res) => {
+app.get('/manage-events', verifyApi, async(req, res) => {
     const result = await eventCollection.find().toArray()
     res.send(result)
 })
 
-app.get('/manage-events/:id', async(req, res) => {
+app.get('/manage-events/:id', verifyApi, async(req, res) => {
+
+
     const { id } = req.params
 
     if (!ObjectId.isValid(id)) {
