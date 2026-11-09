@@ -2,6 +2,7 @@ import express from 'express'
 import { MongoClient, ObjectId } from 'mongodb';
 import 'dotenv/config'
 import cors from "cors"
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const app = express()
 const port = 5000
@@ -26,21 +27,33 @@ const mongoClient = await connectToMongoDB()
 const db = mongoClient.db("helpinghand")
 const eventCollection = db.collection("event")
 
-const verifyApi = (req, res, next) => {
 
-    const authHeader = req.headers.authorization
-    console.log(authHeader)
+const JWKS = createRemoteJWKSet(
+    new URL("http://localhost:3000/api/auth/jwks")
+);
 
-    if(authHeader!=="user logged in"){
-        return res.status(401).send({msg: 'Unauthorized!'})
+const verifyApi = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader?.startsWith("Bearer ")) {
+        return res.status(401).send({ msg: "Unauthorized!" });
     }
 
-    console.log("I am")
-    next();
+    const token = authHeader.split(" ")[1];
 
-}
+    const {payload} = await jwtVerify(token, JWKS)
+    console.log(payload)
 
-app.post('/create-event', async(req, res) =>{
+    try {
+        const {payload} = await jwtVerify(token, JWKS)
+            next();
+    } catch (error) {
+        return res.status(401).send({msg: "Invalid Token!"})
+    }
+};
+
+
+app.post('/create-event', verifyApi, async(req, res) =>{
 
     const data = req.body
 
@@ -75,7 +88,7 @@ app.get('/manage-events/:id', verifyApi, async(req, res) => {
     res.send(result)
 })
 
-app.patch('/manage-events/:id', async(req, res) => {
+app.patch('/manage-events/:id', verifyApi, async(req, res) => {
     const { id } = req.params
 
     if (!ObjectId.isValid(id)) {
@@ -97,7 +110,7 @@ app.patch('/manage-events/:id', async(req, res) => {
     res.send(result)
 })
 
-app.delete('/manage-events/:id', async(req, res) => {
+app.delete('/manage-events/:id', verifyApi, async(req, res) => {
     const { id } = req.params
 
     if (!ObjectId.isValid(id)) {
@@ -113,7 +126,7 @@ app.delete('/manage-events/:id', async(req, res) => {
     res.send(result)
 })
 
-app.patch('/manage-events/:id/join', async(req, res) => {
+app.patch('/manage-events/:id/join', verifyApi, async(req, res) => {
     const { id } = req.params
     const { userId, joined } = req.body
 
