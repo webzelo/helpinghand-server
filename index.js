@@ -35,7 +35,7 @@ await eventJoinCollection.createIndex(
 
 
 const JWKS = createRemoteJWKSet(
-    new URL("http://localhost:3000/api/auth/jwks")
+    new URL(`${process.env.CLIENT_URL}/api/auth/jwks`)
 );
 
 const verifyApi = async (req, res, next) => {
@@ -213,8 +213,7 @@ app.patch('/manage-events/:id/join', verifyApi, async(req, res) => {
         res.status(500).send({ message: 'Could not update this event.' })
     }
 })
- 
-//http://localhost:5000/create-event
+
 
 app.get('/', (req, res) => {
   res.send({message: 'Server Is Running Fine!'})
