@@ -74,8 +74,16 @@ app.get('/manage-events', verifyApi, async(req, res) => {
     res.send(result)
 })
 
-app.get('featured-events', async(req, res) =>{
-    const result = await eventCollection.find().limit(5).toArray()
+app.get('/featured-upcoming-events', async(req, res) => {
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+
+    const result = await eventCollection
+        .find({ eventDate: { $gte: today } })
+        .sort({ eventDate: 1 })
+        .limit(6)
+        .toArray()
+
     res.send(result)
 })
 
