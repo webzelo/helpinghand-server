@@ -26,6 +26,12 @@ const mongoClient = await connectToMongoDB()
 
 const db = mongoClient.db("helpinghand")
 const eventCollection = db.collection("event")
+const eventJoinCollection = db.collection("event_join")
+
+await eventJoinCollection.createIndex(
+    { eventId: 1, userId: 1 },
+    { unique: true }
+)
 
 
 const JWKS = createRemoteJWKSet(
@@ -41,14 +47,12 @@ const verifyApi = async (req, res, next) => {
 
     const token = authHeader.split(" ")[1];
 
-    const {payload} = await jwtVerify(token, JWKS)
-    console.log(payload)
-
     try {
-        const {payload} = await jwtVerify(token, JWKS)
-            next();
-    } catch (error) {
-        return res.status(401).send({msg: "Invalid Token!"})
+        const { payload } = await jwtVerify(token, JWKS)
+        req.user = payload
+        next();
+    } catch {
+        return res.status(401).send({ msg: "Invalid Token!" })
     }
 };
 
@@ -70,9 +74,25 @@ app.get('/manage-events', verifyApi, async(req, res) => {
     res.send(result)
 })
 
-app.get('/manage-events/:id', verifyApi, async(req, res) => {
+app.get('featured-events', async(req, res) =>{
+    const result = await eventCollection.find().limit(5).toArray()
+    res.send(result)
+})
 
+// Public: upcoming events only, soonest first.
+app.get('/events', async(req, res) => {
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 
+    const result = await eventCollection
+        .find({ eventDate: { $gte: today } })
+        .sort({ eventDate: 1 })
+        .toArray()
+
+    res.send(result)
+})
+
+const getEventById = async(req, res) => {
     const { id } = req.params
 
     if (!ObjectId.isValid(id)) {
@@ -86,7 +106,12 @@ app.get('/manage-events/:id', verifyApi, async(req, res) => {
     }
 
     res.send(result)
-})
+}
+
+// Public: anyone can read an event's details.
+app.get('/events/:id', getEventById)
+
+app.get('/manage-events/:id', verifyApi, getEventById)
 
 app.patch('/manage-events/:id', verifyApi, async(req, res) => {
     const { id } = req.params
@@ -128,28 +153,57 @@ app.delete('/manage-events/:id', verifyApi, async(req, res) => {
 
 app.patch('/manage-events/:id/join', verifyApi, async(req, res) => {
     const { id } = req.params
-    const { userId, joined } = req.body
+    const { joined } = req.body
 
     if (!ObjectId.isValid(id)) {
         return res.status(400).send({ message: 'Invalid event id.' })
     }
 
+    // Use the verified token, never a userId supplied by the client.
+    const userId = req.user?.sub ?? req.user?.id
+
     if (!userId) {
-        return res.status(400).send({ message: 'userId is required.' })
+        return res.status(401).send({ message: 'Unauthorized!' })
     }
 
-    const result = await eventCollection.updateOne(
-        { _id: new ObjectId(id) },
-        joined
-            ? { $addToSet: { participants: userId } }
-            : { $pull: { participants: userId } }
-    )
+    try {
+        const result = await eventCollection.updateOne(
+            { _id: new ObjectId(id) },
+            joined
+                ? { $addToSet: { participants: userId } }
+                : { $pull: { participants: userId } }
+        )
 
-    if (result.matchedCount === 0) {
-        return res.status(404).send({ message: 'Event not found.' })
+        if (result.matchedCount === 0) {
+            return res.status(404).send({ message: 'Event not found.' })
+        }
+
+        if (joined) {
+            await eventJoinCollection.updateOne(
+                { eventId: new ObjectId(id), userId },
+                {
+                    $set: {
+                        eventId: new ObjectId(id),
+                        userId,
+                        name: req.user?.name ?? '',
+                        email: req.user?.email ?? '',
+                        joinedAt: new Date(),
+                    },
+                },
+                { upsert: true }
+            )
+        } else {
+            await eventJoinCollection.deleteOne({
+                eventId: new ObjectId(id),
+                userId,
+            })
+        }
+
+        res.send(result)
+    } catch (error) {
+        console.dir(error)
+        res.status(500).send({ message: 'Could not update this event.' })
     }
-
-    res.send(result)
 })
  
 //http://localhost:5000/create-event
